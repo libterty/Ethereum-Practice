@@ -1,10 +1,16 @@
 const express = require('express');
 const request = require('request');
+const Account = require('../account');
 const Blockchain = require('../blockchain');
 const Block = require('../blockchain/block');
 const PubSub = require('./pubsub');
+const Transaction = require('../transactions');
+const TransactionQueue = require('../transactions/transaction-queue');
 const app = express();
+const account = new Account();
 const blockchain = new Blockchain();
+const transaction = Transaction.createTransaction({ account });
+const transactionQueue = new TransactionQueue();
 const pubsub = new PubSub({ blockchain });
 const port = process.argv.includes('--peer')
   ? Math.floor(2000 + Math.random() * 1000)
@@ -22,6 +28,13 @@ if (peer) {
   });
 }
 
+transactionQueue.add(transaction);
+
+// console.log(
+//     'transactionQueue.getTransactionSeries()',
+//     transactionQueue.getTransactionSeries()
+// );
+
 app.get('/blockchain', (req, res, next) => {
   const { chain } = blockchain;
 
@@ -30,7 +43,7 @@ app.get('/blockchain', (req, res, next) => {
 
 app.get('/blockchain/mine', (req, res, next) => {
   const lastBlock = blockchain.chain[blockchain.chain.length - 1];
-  const block = Block.mineBlock({ lastBlock });
+  const block = Block.mineBlock({ lastBlock, beneficiary: account.address });
 
   // expect error return
   // block.blockHeaders.parentHash = 'foo'

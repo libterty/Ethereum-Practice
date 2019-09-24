@@ -10,6 +10,9 @@
         "test": "jest --watchAll",
         "lint": "eslint --format table --fix ."
     },
+    "jest": {
+        "testEnvironment": "node"
+    },
     "keywords": [],
     "author": "",
     "license": "ISC",
@@ -28,9 +31,11 @@
     },
     "dependencies": {
         "dotenv": "^8.1.0",
+        "elliptic": "^6.5.1",
         "express": "^4.17.1",
         "js-sha3": "^0.8.0",
         "pubnub": "^4.26.0",
-        "request": "^2.88.0"
+        "request": "^2.88.0",
+        "uuid": "^3.3.3"
     }
 }
