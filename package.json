@@ -4,6 +4,7 @@
     "description": "",
     "main": "index.js",
     "scripts": {
+        "api-test": "node ./api-test.js",
         "start": "node ./api",
         "dev": "nodemon ./api",
         "dev-peer": "nodemon ./api --peer",
@@ -30,6 +31,7 @@
         "singleQuote": true
     },
     "dependencies": {
+        "body-parser": "^1.19.0",
         "dotenv": "^8.1.0",
         "elliptic": "^6.5.1",
         "express": "^4.17.1",

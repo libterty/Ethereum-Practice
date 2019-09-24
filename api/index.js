@@ -1,4 +1,5 @@
 const express = require('express');
+const bodyParser = require('body-parser');
 const request = require('request');
 const Account = require('../account');
 const Blockchain = require('../blockchain');
@@ -6,16 +7,16 @@ const Block = require('../blockchain/block');
 const PubSub = require('./pubsub');
 const Transaction = require('../transactions');
 const TransactionQueue = require('../transactions/transaction-queue');
-const app = express();
 const account = new Account();
 const blockchain = new Blockchain();
 const transaction = Transaction.createTransaction({ account });
 const transactionQueue = new TransactionQueue();
-const pubsub = new PubSub({ blockchain });
-const port = process.argv.includes('--peer')
-  ? Math.floor(2000 + Math.random() * 1000)
-  : 3000;
+const pubsub = new PubSub({ blockchain, transactionQueue });
 const peer = process.argv.includes('--peer');
+const app = express();
+app.use(bodyParser.json());
+const port = peer ? Math.floor(2000 + Math.random() * 1000) : 3000;
+
 if (peer) {
   request('http://localhost:3000/blockchain', (error, response, body) => {
     const { chain } = JSON.parse(body);
@@ -28,12 +29,9 @@ if (peer) {
   });
 }
 
-transactionQueue.add(transaction);
-
-// console.log(
-//     'transactionQueue.getTransactionSeries()',
-//     transactionQueue.getTransactionSeries()
-// );
+setTimeout(() => {
+  pubsub.broadcastTransaction(transaction);
+}, 500);
 
 app.get('/blockchain', (req, res, next) => {
   const { chain } = blockchain;
@@ -43,19 +41,34 @@ app.get('/blockchain', (req, res, next) => {
 
 app.get('/blockchain/mine', (req, res, next) => {
   const lastBlock = blockchain.chain[blockchain.chain.length - 1];
-  const block = Block.mineBlock({ lastBlock, beneficiary: account.address });
+  const block = Block.mineBlock({
+    lastBlock,
+    beneficiary: account.address,
+    transactionSeries: transactionQueue.getTransactionSeries()
+  });
 
   // expect error return
   // block.blockHeaders.parentHash = 'foo'
 
   blockchain
-    .addBlock({ block })
+    .addBlock({ block, transactionQueue })
     .then(() => {
       pubsub.broadcastBlock(block);
 
       res.json({ block });
     })
     .catch(next);
+});
+
+app.post('/account/transact', (req, res, next) => {
+  const { to, value } = req.body;
+  const transaction = Transaction.createTransaction({
+    account: !to ? new Account() : account,
+    to,
+    value
+  });
+  pubsub.broadcastTransaction(transaction);
+  res.json({ transaction });
 });
 
 app.use((err, req, res, next) => {

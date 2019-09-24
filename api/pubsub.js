@@ -1,4 +1,5 @@
 const PubNub = require('pubnub');
+const Transaction = require('../transactions');
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
@@ -11,13 +12,15 @@ const credentials = {
 
 const CHANNELS_MAP = {
   TEST: 'TEST',
-  BLOCK: 'BLOCK'
+  BLOCK: 'BLOCK',
+  TRANSACTION: 'TRANSACTION'
 };
 
 class PubSub {
-  constructor({ blockchain }) {
+  constructor({ blockchain, transactionQueue }) {
     this.pubnub = new PubNub(credentials);
     this.blockchain = blockchain;
+    this.transactionQueue = transactionQueue;
     this.subscriveToChannels();
     this.listen();
   }
@@ -44,9 +47,23 @@ class PubSub {
           case CHANNELS_MAP.BLOCK:
             console.log('block message', message);
             this.blockchain
-              .addBlock({ block: parsedMessage })
-              .then(() => console.log('New block accepted'))
+              .addBlock({
+                block: parsedMessage,
+                transactionQueue: this.transactionQueue
+              })
+              .then(() => console.log('New block accepted', parsedMessage))
               .catch(err => console.error('New block rejected:', err.message));
+            break;
+          case CHANNELS_MAP.TRANSACTION:
+            console.log(`Received transaction: ${parsedMessage.id}`);
+
+            this.transactionQueue.add(new Transaction(parsedMessage));
+
+            // console.log(
+            //   'this.transactionQueue.getTransactionSeries()',
+            //   this.transactionQueue.getTransactionSeries()
+            // );
+
             break;
           default:
             return;
@@ -59,6 +76,13 @@ class PubSub {
     this.publish({
       channel: CHANNELS_MAP.BLOCK,
       message: JSON.stringify(block)
+    });
+  }
+
+  broadcastTransaction(transaction) {
+    this.publish({
+      channel: CHANNELS_MAP.TRANSACTION,
+      message: JSON.stringify(transaction)
     });
   }
 }
