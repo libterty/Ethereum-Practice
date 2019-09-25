@@ -1,9 +1,10 @@
-const { keccakHash } = require('../util');
+const { MINING_REWARD } = require('../config');
 const uuid = require('uuid/v4');
 const Account = require('../account');
 const TRANSACTION_TYPE_MAP = {
   CREATE_ACCOUNT: 'CREATE_ACCOUNT',
-  TRANSACT: 'TRANSACT'
+  TRANSACT: 'TRANSACT',
+  MINING_REWARD: 'MINING_REWARD'
 };
 
 class Transaction {
@@ -16,7 +17,15 @@ class Transaction {
     this.signature = signature || '-';
   }
 
-  static createTransaction({ account, to, value }) {
+  static createTransaction({ account, to, value, beneficiary }) {
+    if (beneficiary) {
+      return new Transaction({
+        to: beneficiary,
+        value: MINING_REWARD,
+        data: { type: TRANSACTION_TYPE_MAP.MINING_REWARD }
+      });
+    }
+
     if (to) {
       const transactionData = {
         id: uuid(),
@@ -40,9 +49,9 @@ class Transaction {
     });
   }
 
-  static validateStandrdTransaction({ transaction }) {
+  static validateStandrdTransaction({ state, transaction }) {
     return new Promise((resolve, reject) => {
-      const { from, signature } = transaction;
+      const { id, from, signature, value, to } = transaction;
       const transactionData = { ...transaction };
       delete transactionData.signature;
 
@@ -54,6 +63,21 @@ class Transaction {
         })
       ) {
         return reject(new Error(`Transaction ${id} signature is invalid`));
+      }
+      const fromBalance = state.getAccount({ address: from }).balance;
+
+      if (value > fromBalance) {
+        return reject(
+          new Error(
+            `Transaction value: ${value} exceeds balance: ${fromBalance}`
+          )
+        );
+      }
+
+      const toAccount = state.getAccount({ address: to });
+
+      if (!toAccount) {
+        return reject(new Error(`The to field: ${to} does not exist`));
       }
 
       return resolve();
@@ -83,6 +107,56 @@ class Transaction {
     });
   }
 
+  static validateMiningRewardTransaction({ transaction }) {
+    return new Promise((resolve, reject) => {
+      const { value } = transaction;
+
+      if (value !== MINING_REWARD) {
+        return reject(
+          new Error(
+            `The provided mining reward value: ${value} does not equal the official value: ${MINING_REWARD}`
+          )
+        );
+      }
+
+      return resolve();
+    });
+  }
+
+  static validateTransactionSeries({ transactionSeries, state }) {
+    return new Promise(async (resolve, reject) => {
+      for (let transaction of transactionSeries) {
+        try {
+          switch (transaction.data.type) {
+            case TRANSACTION_TYPE_MAP.CREATE_ACCOUNT:
+              await Transaction.validateCreateAccountTransaction({
+                transaction
+              });
+              break;
+            case TRANSACTION_TYPE_MAP.TRANSACT:
+              await Transaction.validateStandrdTransaction({
+                state,
+                transaction
+              });
+              break;
+            case TRANSACTION_TYPE_MAP.MINING_REWARD:
+              await Transaction.validateMiningRewardTransaction({
+                state,
+                transaction
+              });
+              break;
+            default:
+              break;
+          }
+        } catch (error) {
+          return reject(error);
+        }
+      }
+
+      return resolve();
+    });
+  }
+
   static runTransaction({ state, transaction }) {
     switch (transaction.data.type) {
       case TRANSACTION_TYPE_MAP.TRANSACT:
@@ -94,6 +168,10 @@ class Transaction {
       case TRANSACTION_TYPE_MAP.CREATE_ACCOUNT:
         Transaction.runCreateAccountTransaction({ state, transaction });
         console.log(' -- Stored the account data -- ');
+        break;
+      case TRANSACTION_TYPE_MAP.MINING_REWARD:
+        Transaction.runMiningRewardTransaction({ state, transaction });
+        console.log(' -- Update account data to reflect the mining reward -- ');
         break;
       default:
         break;
@@ -118,6 +196,15 @@ class Transaction {
     const { address } = accountData;
 
     state.putAccount({ address, accountData });
+  }
+
+  static runMiningRewardTransaction({ state, transaction }) {
+    const { to, value } = transaction;
+    const accountData = state.getAccount({ address: to });
+
+    accountData.balance += value;
+
+    state.putAccount({ address: to, accountData });
   }
 }
 

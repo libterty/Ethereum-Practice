@@ -1,6 +1,7 @@
 const { GENSIS_DATA, MINE_RATE } = require('../config');
 const { keccakHash } = require('../util');
 const Transaction = require('../transactions');
+const Trie = require('../store/trie');
 
 const HASH_LENGTH = 64;
 const MAX_HASH_VALUE = parseInt('f'.repeat(HASH_LENGTH), 16);
@@ -45,6 +46,11 @@ class Block {
     // temp header & nonce value will calculate actual hash that tries to meet the difficulty requirement.
     // if the hash found by combining header and nonce val falls under target than the block is valid, then create base on truncatedBlockHeaders.
     const target = Block.calculateBlockTargetHash({ lastBlock });
+    const miningRewardTransaction = Transaction.createTransaction({
+      beneficiary
+    });
+    transactionSeries.push(miningRewardTransaction);
+    const transactionsTrie = Trie.buildTrie({ items: transactionSeries });
     let timestamp, truncatedBlockHeaders, header, nonce, underTargetHash;
 
     do {
@@ -55,10 +61,7 @@ class Block {
         difficulty: Block.adjustDifficulty({ lastBlock, timestamp }),
         number: lastBlock.blockHeaders.number + 1,
         timestamp,
-        /**
-         * Note: the `transactionRoot` will be refactored once Tries are implemented.
-         */
-        transactionRoot: keccakHash(transactionSeries),
+        transactionRoot: transactionsTrie.rootHash,
         stateRoot
       };
       header = keccakHash(truncatedBlockHeaders);
@@ -84,7 +87,7 @@ class Block {
     return new this(GENSIS_DATA); // this eq Block
   }
 
-  static validateBlock({ lastBlock, block }) {
+  static validateBlock({ lastBlock, block, state }) {
     return new Promise((resolve, reject) => {
       if (keccakHash(block) === keccakHash(Block.genesis())) {
         return resolve();
@@ -110,6 +113,21 @@ class Block {
         return reject(new Error('The difficulty must only adjust by 1'));
       }
 
+      const rebuiltTransactionsTrie = Trie.buildTrie({
+        items: block.transactionSeries
+      });
+
+      if (
+        rebuiltTransactionsTrie.rootHash !== block.blockHeaders.transactionRoot
+      ) {
+        return reject(
+          new Error(
+            `The rebuild transactions root does not match the block's` +
+              `transactions root: ${block.blockHeaders.transactionRoot}`
+          )
+        );
+      }
+
       const target = Block.calculateBlockTargetHash({ lastBlock });
       const { blockHeaders } = block;
       const { nonce } = blockHeaders;
@@ -123,6 +141,13 @@ class Block {
           new Error('The block does not meet the proof of work requirement')
         );
       }
+
+      Transaction.validateTransactionSeries({
+        state,
+        transactionSeries: block.transactionSeries
+      })
+        .then(resolve)
+        .catch(reject);
 
       return resolve();
     });
