@@ -5,10 +5,12 @@ const Account = require('../account');
 const Blockchain = require('../blockchain');
 const Block = require('../blockchain/block');
 const PubSub = require('./pubsub');
+const State = require('../store/state');
 const Transaction = require('../transactions');
 const TransactionQueue = require('../transactions/transaction-queue');
 const account = new Account();
-const blockchain = new Blockchain();
+const state = new State();
+const blockchain = new Blockchain({ state });
 const transaction = Transaction.createTransaction({ account });
 const transactionQueue = new TransactionQueue();
 const pubsub = new PubSub({ blockchain, transactionQueue });
@@ -44,7 +46,8 @@ app.get('/blockchain/mine', (req, res, next) => {
   const block = Block.mineBlock({
     lastBlock,
     beneficiary: account.address,
-    transactionSeries: transactionQueue.getTransactionSeries()
+    transactionSeries: transactionQueue.getTransactionSeries(),
+    stateRoot: state.getStateRoot()
   });
 
   // expect error return
@@ -69,6 +72,17 @@ app.post('/account/transact', (req, res, next) => {
   });
   pubsub.broadcastTransaction(transaction);
   res.json({ transaction });
+});
+
+app.get('/account/balance', (req, res, next) => {
+  const { address } = req.query;
+
+  const balance = Account.calculateBalance({
+    address: address || account.address,
+    state
+  });
+
+  res.json({ balance });
 });
 
 app.use((err, req, res, next) => {

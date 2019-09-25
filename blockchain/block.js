@@ -1,5 +1,6 @@
 const { GENSIS_DATA, MINE_RATE } = require('../config');
 const { keccakHash } = require('../util');
+const Transaction = require('../transactions');
 
 const HASH_LENGTH = 64;
 const MAX_HASH_VALUE = parseInt('f'.repeat(HASH_LENGTH), 16);
@@ -40,7 +41,7 @@ class Block {
     return difficulty + 1;
   }
 
-  static mineBlock({ lastBlock, beneficiary, transactionSeries }) {
+  static mineBlock({ lastBlock, beneficiary, transactionSeries, stateRoot }) {
     // temp header & nonce value will calculate actual hash that tries to meet the difficulty requirement.
     // if the hash found by combining header and nonce val falls under target than the block is valid, then create base on truncatedBlockHeaders.
     const target = Block.calculateBlockTargetHash({ lastBlock });
@@ -57,7 +58,8 @@ class Block {
         /**
          * Note: the `transactionRoot` will be refactored once Tries are implemented.
          */
-        transactionRoot: keccakHash(transactionSeries)
+        transactionRoot: keccakHash(transactionSeries),
+        stateRoot
       };
       header = keccakHash(truncatedBlockHeaders);
       nonce = Math.floor(Math.random() * MAX_NONCE_VALUE);
@@ -124,6 +126,12 @@ class Block {
 
       return resolve();
     });
+  }
+
+  static runBlock({ block, state }) {
+    for (let transaction of block.transactionSeries) {
+      Transaction.runTransaction({ transaction, state });
+    }
   }
 }
 

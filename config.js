@@ -6,7 +6,8 @@ const GENSIS_DATA = {
     number: 0,
     timestamp: '--genesis-timestamp--',
     nonce: 0,
-    transactionRoot: '--genesis-transactions-root--'
+    transactionRoot: '--genesis-transactions-root--',
+    stateRoot: '--genesis-state-root--'
   },
   transactionSeries: []
 };
