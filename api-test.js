@@ -1,18 +1,18 @@
 const request = require('request');
 
 const { OPCODE_MAP } = require('./interpreter');
-const { STOP, ADD, PUSH } = OPCODE_MAP;
+const { STOP, ADD, PUSH, STORE, LOAD } = OPCODE_MAP;
 
 const BASE_URL = 'http://localhost:3000';
 
-const postTransact = ({ code, to, value }) => {
+const postTransact = ({ code, to, value, gasLimit }) => {
   return new Promise((resolve, reject) => {
     request(
       `${BASE_URL}/account/transact`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, to, value })
+        body: JSON.stringify({ code, to, value, gasLimit })
       },
       (error, response, body) => {
         // console.log(body)
@@ -65,7 +65,9 @@ postTransact({})
       postTransactResponse2
     );
 
-    const code = [PUSH, 4, PUSH, 5, ADD, STOP];
+    const key = 'foo';
+    const value = 'bar';
+    const code = [PUSH, value, PUSH, key, STORE, PUSH, key, LOAD, STOP];
 
     return postTransact({ code });
   })
@@ -84,7 +86,8 @@ postTransact({})
 
     return postTransact({
       to: smartContractAccountData.codeHash,
-      value: 0
+      value: 0,
+      gasLimit: 100
     })
       .then(postTransactResponse4 => {
         console.log(

@@ -11,6 +11,8 @@ const AND = 'AND';
 const OR = 'OR';
 const JUMP = 'JUMP';
 const JUMPI = 'JUMPI';
+const STORE = 'STORE';
+const LOAD = 'LOAD';
 
 const EXECUTION_COMPLETE = 'Execution complete';
 const EXECUTION_LIMIT = 10000;
@@ -28,17 +30,39 @@ const OPCODE_MAP = {
   AND,
   OR,
   JUMP,
-  JUMPI
+  JUMPI,
+  STORE,
+  LOAD
+};
+
+const OPCODE_GAS_MAP = {
+  STOP: 0,
+  ADD: 1,
+  SUB: 1,
+  MUL: 1,
+  DIV: 1,
+  PUSH: 0,
+  LT: 1,
+  GT: 1,
+  EQ: 1,
+  AND: 1,
+  OR: 1,
+  JUMP: 2,
+  JUMPI: 2,
+  STORE: 5,
+  LOAD: 5
 };
 
 class Interpreter {
-  constructor() {
+  constructor({ storageTrie } = {}) {
     this.state = {
       programCounter: 0,
       stack: [],
       code: [],
       executionCount: 0
     };
+
+    this.storageTrie = storageTrie;
   }
 
   jump() {
@@ -55,6 +79,8 @@ class Interpreter {
   runCode(code) {
     this.state.code = code;
 
+    let gasUsed = 0;
+
     while (this.state.programCounter < this.state.code.length) {
       this.state.executionCount++;
 
@@ -65,6 +91,10 @@ class Interpreter {
       }
 
       const opCode = this.state.code[this.state.programCounter];
+
+      gasUsed += OPCODE_GAS_MAP[opCode];
+
+      let value, key;
 
       try {
         switch (opCode) {
@@ -77,7 +107,7 @@ class Interpreter {
               throw new Error(`The 'PUSH' instruction cannot be last`);
             }
 
-            const value = this.state.code[this.state.programCounter];
+            value = this.state.code[this.state.programCounter];
             this.state.stack.push(value);
             break;
           case ADD:
@@ -115,12 +145,27 @@ class Interpreter {
               this.jump();
             }
             break;
+          case STORE:
+            key = this.state.stack.pop();
+            value = this.state.stack.pop();
+
+            this.storageTrie.put({ key, value });
+
+            break;
+          case LOAD:
+            key = this.state.stack.pop();
+            value = this.storageTrie.get({ key });
+            this.state.stack.push(value);
+            break;
           default:
             break;
         }
       } catch (error) {
         if (error.message === EXECUTION_COMPLETE) {
-          return this.state.stack[this.state.stack.length - 1];
+          return {
+            result: this.state.stack[this.state.stack.length - 1],
+            gasUsed
+          };
         }
         throw error;
       }

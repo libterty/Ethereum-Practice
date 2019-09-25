@@ -1,4 +1,5 @@
 const Interpreter = require('./index');
+const Trie = require('../store/trie');
 
 const {
   STOP,
@@ -13,7 +14,9 @@ const {
   AND,
   OR,
   JUMP,
-  JUMPI
+  JUMPI,
+  STORE,
+  LOAD
 } = Interpreter.OPCODE_MAP;
 
 describe('Interpreter', () => {
@@ -21,7 +24,7 @@ describe('Interpreter', () => {
     describe('and the code includes ADD', () => {
       it('add two values', () => {
         expect(
-          new Interpreter().runCode([PUSH, 2, PUSH, 3, ADD, STOP])
+          new Interpreter().runCode([PUSH, 2, PUSH, 3, ADD, STOP]).result
         ).toEqual(5);
       });
     });
@@ -29,7 +32,7 @@ describe('Interpreter', () => {
     describe('and the code includes SUB', () => {
       it('add two values', () => {
         expect(
-          new Interpreter().runCode([PUSH, 2, PUSH, 3, SUB, STOP])
+          new Interpreter().runCode([PUSH, 2, PUSH, 3, SUB, STOP]).result
         ).toEqual(1);
       });
     });
@@ -37,7 +40,7 @@ describe('Interpreter', () => {
     describe('and the code includes MUL', () => {
       it('add two values', () => {
         expect(
-          new Interpreter().runCode([PUSH, 2, PUSH, 3, MUL, STOP])
+          new Interpreter().runCode([PUSH, 2, PUSH, 3, MUL, STOP]).result
         ).toEqual(6);
       });
     });
@@ -45,48 +48,48 @@ describe('Interpreter', () => {
     describe('and the code includes DIV', () => {
       it('add two values', () => {
         expect(
-          new Interpreter().runCode([PUSH, 2, PUSH, 3, DIV, STOP])
+          new Interpreter().runCode([PUSH, 2, PUSH, 3, DIV, STOP]).result
         ).toEqual(1.5);
       });
     });
 
     describe('and the code includes LT', () => {
       it('add two values', () => {
-        expect(new Interpreter().runCode([PUSH, 2, PUSH, 3, LT, STOP])).toEqual(
-          0
-        );
+        expect(
+          new Interpreter().runCode([PUSH, 2, PUSH, 3, LT, STOP]).result
+        ).toEqual(0);
       });
     });
 
     describe('and the code includes GT', () => {
       it('add two values', () => {
-        expect(new Interpreter().runCode([PUSH, 2, PUSH, 3, GT, STOP])).toEqual(
-          1
-        );
+        expect(
+          new Interpreter().runCode([PUSH, 2, PUSH, 3, GT, STOP]).result
+        ).toEqual(1);
       });
     });
 
     describe('and the code includes EQ', () => {
       it('add two values', () => {
-        expect(new Interpreter().runCode([PUSH, 2, PUSH, 2, EQ, STOP])).toEqual(
-          1
-        );
+        expect(
+          new Interpreter().runCode([PUSH, 2, PUSH, 2, EQ, STOP]).result
+        ).toEqual(1);
       });
     });
 
     describe('and the code includes AND', () => {
       it('ands two conditions', () => {
         expect(
-          new Interpreter().runCode([PUSH, 1, PUSH, 0, AND, STOP])
+          new Interpreter().runCode([PUSH, 1, PUSH, 0, AND, STOP]).result
         ).toEqual(0);
       });
     });
 
     describe('and the code includes OR', () => {
       it('or two conditions', () => {
-        expect(new Interpreter().runCode([PUSH, 1, PUSH, 0, OR, STOP])).toEqual(
-          1
-        );
+        expect(
+          new Interpreter().runCode([PUSH, 1, PUSH, 0, OR, STOP]).result
+        ).toEqual(1);
       });
     });
 
@@ -103,9 +106,42 @@ describe('Interpreter', () => {
             PUSH,
             'JUMP successful',
             STOP
-          ])
+          ]).result
         ).toEqual('JUMP successful');
       });
+    });
+
+    describe('and the code inculdes STORE', () => {
+      const interpreter = new Interpreter({
+        storageTrie: new Trie()
+      });
+      const key = 'foo';
+      const value = 'bar';
+
+      interpreter.runCode([PUSH, value, PUSH, key, STORE, STOP]);
+      expect(interpreter.storageTrie.get({ key })).toEqual(value);
+    });
+
+    describe('and the code includes LOAD', () => {
+      const interpreter = new Interpreter({
+        storageTrie: new Trie()
+      });
+      const key = 'foo';
+      const value = 'bar';
+
+      expect(
+        interpreter.runCode([
+          PUSH,
+          value,
+          PUSH,
+          key,
+          STORE,
+          PUSH,
+          key,
+          LOAD,
+          STOP
+        ]).result
+      ).toEqual(value);
     });
 
     describe('and the code includes JUMPI', () => {
@@ -123,7 +159,7 @@ describe('Interpreter', () => {
             PUSH,
             'JUMP successful',
             STOP
-          ])
+          ]).result
         ).toEqual('JUMP successful');
       });
     });
